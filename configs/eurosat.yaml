@@ -1,0 +1,8 @@
+# Configuration for RFIA Hyperparameters
+
+# --- Positive Cache Configuration ---
+positive:
+  enabled: True
+  shot_capacity: 5
+  alpha: 4.0
+  beta: 8.0 
