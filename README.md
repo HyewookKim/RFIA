@@ -1,5 +1,5 @@
 # Adaptive Representation Construction from CLIP Embeddings for Test-Time Adaptation 
-[![Website](https://kdiaaa.github.io/tda/)
+[Website](https://github.com/HyewookKim/RFIA)
 
 Official implementation of the paper: "Efficient Test-Time Adaptation of Vision-Language Models" [CVPR 2024].
 
