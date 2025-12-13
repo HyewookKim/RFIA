@@ -172,7 +172,7 @@ def main():
     # Set random seed
     random.seed(1)
     torch.manual_seed(1)
-    args.wandb = False
+    # args.wandb = False
     if args.wandb:
         date = datetime.now().strftime("%b%d_%H-%M-%S")
         group_name = f"{args.backbone}_{args.datasets}_{date}"

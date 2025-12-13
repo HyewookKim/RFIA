@@ -6,10 +6,10 @@
 Follow these steps to set up a conda environment and ensure all necessary packages are installed:
 
 ```bash
-git clone https://github.com/kdiAAA/TDA.git
+git clone https://github.com/HyewookKim/RFIA.git
 cd RFIA
 
-conda create -n tda python=3.7
+conda create -n RFIA python=3.7
 conda activate rfia
 
 # The results are produced with PyTorch 1.12.1 and CUDA 11.3
@@ -21,9 +21,9 @@ pip install -r requirements.txt
 ### Dataset
 To set up all required datasets, kindly refer to the guidance in [DATASETS.md](docs/DATASETS.md), which incorporates steps for two benchmarks.
 
-## Run TDA
+## Run RFIA
 ### Configs
-The configuration for TDA hyperparameters in `configs/dataset.yaml` can be tailored within the provided file to meet the needs of various datasets. This customization includes settings for both the positive and negative caches as outlined below:
+The configuration for RFIA hyperparameters in `configs/dataset.yaml` can be tailored within the provided file to meet the needs of various datasets. This customization includes settings for both the positive and negative caches as outlined below:
 * **Cache Configuration:** Adjustments can be made to the `shot_capacity`, `alpha`, and `beta` values to optimize performance.
 
 For ease of reference, the configurations provided aim to achieve optimal performance across datasets on two benchmarks, consistent with the results documented in our paper. Adjusting parameters like `alpha` and `beta` within the positive cache lets you fine-tune things to match the unique needs of each dataset.
@@ -31,24 +31,24 @@ For ease of reference, the configurations provided aim to achieve optimal perfor
 ### Running
 To execute the RFIA, navigate to the `scripts` directory, where you'll find 4 bash scripts available. Each script is designed to apply the method to two benchmarks, utilizing either the ResNet50 or ViT/B-16 as the backbone architecture. The scripts process the datasets sequentially, as indicated by the order divided by '/' in the script. WandB logging is activated by default. If you wish to deactivate this feature, simply omit the `--wandb-log` argument. 
 
-Below are instructions for running TDA on both Out-of-Distribution (OOD) and Cross-Domain benchmarks using various backbone architectures. Follow the steps suited to your specific needs:"
+Below are instructions for running RFIA on both Out-of-Distribution (OOD) and Cross-Domain benchmarks using various backbone architectures. Follow the steps suited to your specific needs:"
 
 #### OOD Benchmark
-* **ResNet50**: Run TDA on the OOD Benchmark using the ResNet50 model:
+* **ResNet50**: Run RFIA on the OOD Benchmark using the ResNet50 model:
 ```
 bash ./scripts/run_ood_benchmark_rn50.sh 
 ```
-* **ViT/B-16**: Run TDA on the OOD Benchmark using the ViT/B-16 model.
+* **ViT/B-16**: Run RFIA on the OOD Benchmark using the ViT/B-16 model.
 ```
 bash ./scripts/run_ood_benchmark_vit.sh 
 ```
 
 #### Cross-Domain Benchmark
-* **ResNet50**: Run TDA on the Cross-Domain Benchmark using the ResNet50 model:
+* **ResNet50**: Run RFIA on the Cross-Domain Benchmark using the ResNet50 model:
 ```
 bash ./scripts/run_cd_benchmark_rn50.sh 
 ```
-* **ViT/B-16**: Run TDA on the Cross-Domain Benchmark using the ViT/B-16 model.
+* **ViT/B-16**: Run RFIA on the Cross-Domain Benchmark using the ViT/B-16 model.
 ```
 bash ./scripts/run_cd_benchmark_vit.sh 
 ```
