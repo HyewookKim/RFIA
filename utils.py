@@ -41,7 +41,7 @@ def cls_acc(output, target, topk=1):
     return acc
 
 
-def clip_classifier(classnames, template, clip_model):
+def clip_classifier(classnames, template, clip_model, device):
     with torch.no_grad():
         clip_weights = []
 
@@ -49,7 +49,7 @@ def clip_classifier(classnames, template, clip_model):
             # Tokenize the prompts
             classname = classname.replace('_', ' ')
             texts = [t.format(classname) for t in template]
-            texts = clip.tokenize(texts).cuda()
+            texts = clip.tokenize(texts).to(device)
             # prompt ensemble for ImageNet
             class_embeddings = clip_model.encode_text(texts)
             class_embeddings /= class_embeddings.norm(dim=-1, keepdim=True)
@@ -57,16 +57,16 @@ def clip_classifier(classnames, template, clip_model):
             class_embedding /= class_embedding.norm()
             clip_weights.append(class_embedding)
 
-        clip_weights = torch.stack(clip_weights, dim=1).cuda()
+        clip_weights = torch.stack(clip_weights, dim=1).to(device)
     return clip_weights
 
 
-def get_clip_logits(images, clip_model, clip_weights):
+def get_clip_logits(images, clip_model, clip_weights, device):
     with torch.no_grad():
         if isinstance(images, list):
-            images = torch.cat(images, dim=0).cuda()
+            images = torch.cat(images, dim=0).to(device)
         else:
-            images = images.cuda()
+            images = images.to(device)
 
         image_features = clip_model.encode_image(images)
         image_features /= image_features.norm(dim=-1, keepdim=True)

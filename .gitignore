@@ -1,2 +1,7 @@
 # Weights & Biases
 wandb/
+
+__pycache__/
+*.pyc
+
+scripts/run_cd_dtd_rn50.sh

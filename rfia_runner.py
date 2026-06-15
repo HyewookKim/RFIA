@@ -20,7 +20,8 @@ def get_arguments():
     parser.add_argument('--config', dest='config', required=True, help='settings of TDA on specific dataset in yaml format.')
     parser.add_argument('--wandb-log', dest='wandb', action='store_true', help='Whether you want to log to wandb. Include this flag to enable logging.')
     parser.add_argument('--datasets', dest='datasets', type=str, required=True, help="Datasets to process, separated by a slash (/). Example: I/A/V/R/S")
-    parser.add_argument('--data-root', dest='data_root', type=str, default='/root/Image_set', help='Path to the datasets directory. Default is ./dataset/')
+    parser.add_argument('--data-root', dest='data_root', type=str, default='C:/Users/hyewo/Desktop/VScode/Image_set', help='Path to the datasets directory. Default is ./dataset/')
+    # parser.add_argument('--data-root', dest='data_root', type=str, default='/root/Image_set', help='Path to the datasets directory. Default is ./dataset/')    
     parser.add_argument('--backbone', dest='backbone', type=str, choices=['RN50', 'ViT-B/16'], required=True, help='CLIP model backbone to use: RN50 or ViT-B/16.')
 
     args = parser.parse_args()
@@ -110,7 +111,7 @@ def merge_dictionary(dict1,dict2) :
 
     return merged_dict
     
-def compute_cache_logits(image_features, cache, representation_cache, attention_cache, alpha, beta, clip_weights):
+def compute_cache_logits(image_features, cache, representation_cache, attention_cache, alpha, beta, clip_weights, device):
     """Compute logits using positive/negative cache.""" 
     with torch.no_grad():
         cache_keys = []
@@ -122,12 +123,13 @@ def compute_cache_logits(image_features, cache, representation_cache, attention_
                 cache_keys.append(item[0])
                 cache_values.append(class_index)                  
         cache_keys = torch.cat(cache_keys, dim=0).permute(1, 0)
-        cache_values = (F.one_hot(torch.Tensor(cache_values).to(torch.int64), num_classes=clip_weights.size(1))).cuda().half()
+        cache_values = (F.one_hot(torch.Tensor(cache_values).to(torch.int64), num_classes=clip_weights.size(1))).to(device).half()
         affinity = image_features @ cache_keys
+        cache_values = cache_values.to(dtype=affinity.dtype)
         cache_logits = ((-1) * (beta - beta * affinity)).exp() @ cache_values
         return alpha * cache_logits   
 
-def run_test_tda(pos_cfg, loader, clip_model, clip_weights, wandb_test):
+def run_test_tda(pos_cfg, loader, clip_model, clip_weights, wandb_test, device):
     with torch.no_grad():
         pos_cache, accuracies = {}, []
         representation_cache = {}
@@ -141,14 +143,14 @@ def run_test_tda(pos_cfg, loader, clip_model, clip_weights, wandb_test):
 
         #Test-time adaptation
         for i, (images, target) in enumerate(tqdm(loader, desc='Processed test images: ')):
-            image_features, clip_logits, loss, prob_map, pred = get_clip_logits(images ,clip_model, clip_weights)
-            target = target.cuda()
+            image_features, clip_logits, loss, prob_map, pred = get_clip_logits(images ,clip_model, clip_weights, device)
+            target = target.to(device)
             if pos_enabled:
                 update_cache(pos_cache, pred, [image_features, loss, prob_map], pos_params['shot_capacity'], pos_num_count, clip_weights,
                                  representation_cache, attention_cache,True)
             final_logits = clip_logits.clone()
             if pos_enabled and pos_cache:
-                final_logits += compute_cache_logits(image_features, pos_cache,representation_cache,attention_cache, pos_params['alpha'], pos_params['beta'], clip_weights)
+                final_logits += compute_cache_logits(image_features, pos_cache,representation_cache,attention_cache, pos_params['alpha'], pos_params['beta'], clip_weights, device)
 
             acc = cls_acc(final_logits, target)  
             accuracies.append(acc)
@@ -168,11 +170,13 @@ def main():
     # Initialize CLIP model
     clip_model, preprocess = clip.load(args.backbone)
     clip_model.eval()
+    device = next(clip_model.parameters()).device
+    print(f"Using device: {device}")
 
     # Set random seed
     random.seed(1)
     torch.manual_seed(1)
-    # args.wandb = False
+    args.wandb = False
     if args.wandb:
         date = datetime.now().strftime("%b%d_%H-%M-%S")
         group_name = f"{args.backbone}_{args.datasets}_{date}"
@@ -187,13 +191,13 @@ def main():
         print(cfg, "\n")
         
         test_loader, classnames, template = build_test_data_loader(dataset_name, args.data_root, preprocess)
-        clip_weights = clip_classifier(classnames, template, clip_model)
+        clip_weights = clip_classifier(classnames, template, clip_model, device)
 
         if args.wandb:
             run_name = f"{dataset_name}"
             run = wandb.init(project="RFIA", config=cfg, group=group_name, name=run_name)
 
-        acc = run_test_tda(cfg['positive'], test_loader, clip_model, clip_weights, args.wandb)
+        acc = run_test_tda(cfg['positive'], test_loader, clip_model, clip_weights, args.wandb, device)
 
         if args.wandb:
             wandb.log({f"{dataset_name}": acc})

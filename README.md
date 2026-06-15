@@ -9,7 +9,7 @@ Follow these steps to set up a conda environment and ensure all necessary packag
 git clone https://github.com/HyewookKim/RFIA.git
 cd RFIA
 
-conda create -n RFIA python=3.7
+conda create -n rfia python=3.7
 conda activate rfia
 
 # The results are produced with PyTorch 1.12.1 and CUDA 11.3
