@@ -28,41 +28,6 @@ def get_arguments():
 
     return args
 
-def modify_representation_feature(representation_item,item,total_number):
-    
-    convert_to_total = representation_item[0]*total_number
-    representation_feature = (convert_to_total + item[0])/(total_number+1)
-
-    return representation_feature
-
-def get_attention_feature(representation_item,cache):
-    representation_feature = representation_item[0]
-    cache_feature = [item[0] for item in cache]
-    cache_loss = [item[1] for item in cache]
-    feature_stack = torch.cat(cache_feature)
-    gamma = 0.75
-    loss_stack = torch.exp(-gamma*torch.cat(cache_loss))
-    attention_score = F.softmax(torch.cosine_similarity(feature_stack,representation_feature,dim=1),dim=0)
-    aligned_feature = torch.sum(attention_score.unsqueeze(1)*loss_stack.unsqueeze(1)*feature_stack,dim=0)
-    aligned_feature /= aligned_feature.norm(dim=-1, keepdim=True)
-    aligned_feature = aligned_feature.unsqueeze(0)
-    aligned_item = [copy.deepcopy(representation_item)]
-    aligned_item[0][0] = aligned_feature
-    return aligned_item
-
-def compare_representation_feature(old_representation_feature, new_representation_feature, pred, clip_weights) :
-
-    text_embedding_of_pred = clip_weights[:, pred].unsqueeze(1)
-    old_feature_score = 100*old_representation_feature @ text_embedding_of_pred
-    new_feature_score = 100*new_representation_feature @ text_embedding_of_pred
-
-    score = torch.cat((old_feature_score,new_feature_score),dim=1)
-    score = F.softmax(score,dim=1).squeeze(0)
-
-    if old_feature_score.item() < new_feature_score.item() :
-        old_representation_feature = (old_representation_feature*score[0] + copy.deepcopy(new_representation_feature)*score[1])
-
-    return old_representation_feature
 
 def update_cache(cache, pred, features_loss, shot_capacity, num_count, clip_weights,representation_cache,attention_cache, include_prob_map=False):
     """Update cache with new features and loss, maintaining the maximum shot capacity."""
@@ -91,7 +56,7 @@ def update_cache(cache, pred, features_loss, shot_capacity, num_count, clip_weig
             cache[pred] = [item]
             num_count[pred] = 0
             representation_item = copy.deepcopy(item)
-            representation_item[1] = torch.zeros_like(item[1]) # item[1] is entropy. However, representation_item do not use entropy. So We set loss value = 0 for convenience
+            representation_item[1] = torch.zeros_like(item[1]) # item[1] is entropy. However, representation_item do not use entropy. So We initialize loss value = 0 for convenience
             representation_cache[pred] = [representation_item]
 
 def merge_dictionary(dict1,dict2) :
@@ -129,7 +94,7 @@ def compute_cache_logits(image_features, cache, representation_cache, attention_
         cache_logits = ((-1) * (beta - beta * affinity)).exp() @ cache_values
         return alpha * cache_logits   
 
-def run_test_tda(pos_cfg, loader, clip_model, clip_weights, wandb_test, device):
+def run_test_rfia(pos_cfg, loader, clip_model, clip_weights, wandb_test, device):
     with torch.no_grad():
         pos_cache, accuracies = {}, []
         representation_cache = {}
@@ -176,12 +141,13 @@ def main():
     # Set random seed
     random.seed(1)
     torch.manual_seed(1)
+
     args.wandb = False
     if args.wandb:
         date = datetime.now().strftime("%b%d_%H-%M-%S")
         group_name = f"{args.backbone}_{args.datasets}_{date}"
     
-    # Run TDA on each dataset
+    # Run RFIA on each dataset
     datasets = args.datasets.split('/')
     for dataset_name in datasets:
         print(f"Processing {dataset_name} dataset.")
@@ -197,10 +163,11 @@ def main():
             run_name = f"{dataset_name}"
             run = wandb.init(project="RFIA", config=cfg, group=group_name, name=run_name)
 
-        acc = run_test_tda(cfg['positive'], test_loader, clip_model, clip_weights, args.wandb, device)
+        acc = run_test_rfia(cfg['positive'], test_loader, clip_model, clip_weights, args.wandb, device)
 
         if args.wandb:
             wandb.log({f"{dataset_name}": acc})
             run.finish()
+
 if __name__ == "__main__":
     main()

@@ -9,6 +9,8 @@ from datasets import build_dataset
 from datasets.utils import build_data_loader, AugMixAugmenter
 import torchvision.transforms as transforms
 from PIL import Image
+import copy
+import torch.nn.functional as F
 
 try:
     from torchvision.transforms import InterpolationMode
@@ -141,3 +143,54 @@ def build_test_data_loader(dataset_name, root_path, preprocess):
         raise "Dataset is not from the chosen list"
     
     return test_loader, dataset.classnames, dataset.template
+
+def modify_representation_feature(representation_item,item,total_number):
+    
+    convert_to_total = representation_item[0]*total_number
+    representation_feature = (convert_to_total + item[0])/(total_number+1)
+
+    return representation_feature
+
+def get_attention_feature(representation_item,cache):
+    representation_feature = representation_item[0]
+    cache_feature = [item[0] for item in cache]
+    cache_loss = [item[1] for item in cache]
+    feature_stack = torch.cat(cache_feature)
+    gamma = 0.75
+    loss_stack = torch.exp(-gamma*torch.cat(cache_loss))
+    attention_score = F.softmax(torch.cosine_similarity(feature_stack,representation_feature,dim=1),dim=0)
+    aligned_feature = torch.sum(attention_score.unsqueeze(1)*loss_stack.unsqueeze(1)*feature_stack,dim=0)
+    aligned_feature /= aligned_feature.norm(dim=-1, keepdim=True)
+    aligned_feature = aligned_feature.unsqueeze(0)
+    aligned_item = [copy.deepcopy(representation_item)]
+    aligned_item[0][0] = aligned_feature
+    return aligned_item
+
+def compare_representation_feature(old_representation_feature, new_representation_feature, pred, clip_weights) :
+
+    text_embedding_of_pred = clip_weights[:, pred].unsqueeze(1)
+    old_feature_score = 100*old_representation_feature @ text_embedding_of_pred
+    new_feature_score = 100*new_representation_feature @ text_embedding_of_pred
+
+    score = torch.cat((old_feature_score,new_feature_score),dim=1)
+    score = F.softmax(score,dim=1).squeeze(0)
+
+    if old_feature_score.item() < new_feature_score.item() :
+        old_representation_feature = (old_representation_feature*score[0] + copy.deepcopy(new_representation_feature)*score[1])
+
+    return old_representation_feature
+
+def merge_dictionary(dict1,dict2) :
+    
+    merged_dict = {}
+
+    for key in set(dict1)|set(dict2) :
+        
+        if key in dict1 and key in dict2:
+            merged_dict[key] = dict1[key][:] + [dict2[key][0]]
+        elif key in dict1:
+            merged_dict[key] = dict1[key][:]
+        else:
+            merged_dict[key] = dict2[key][:]
+
+    return merged_dict
