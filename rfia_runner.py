@@ -29,10 +29,11 @@ def get_arguments():
     return args
 
 
-def update_cache(cache, pred, features_loss, shot_capacity, num_count, clip_weights,representation_cache,attention_cache, include_prob_map=False):
+# def update_cache(cache, pred, features_loss, shot_capacity, num_count, clip_weights,representation_cache,attention_cache, include_prob_map=False):
+def update_cache(cache, pred, item, shot_capacity, num_count, clip_weights,representation_cache,attention_cache):    
     """Update cache with new features and loss, maintaining the maximum shot capacity."""
     with torch.no_grad():
-        item = features_loss if not include_prob_map else features_loss[:2] + [features_loss[2]]
+        # item = features_loss if not include_prob_map else features_loss[:2] + [features_loss[2]]     
         if pred in cache:
             if len(cache[pred]) < shot_capacity: 
                 cache[pred].append(item)
@@ -41,9 +42,10 @@ def update_cache(cache, pred, features_loss, shot_capacity, num_count, clip_weig
                 representation_item = representation_cache[pred][0]
                 representation_item[0] = modify_representation_feature(representation_item,item,total_number)
                 attention_cache[pred] = get_attention_feature(representation_item,cache[pred])
-                representation_item[0] = compare_representation_feature(representation_item[0], attention_cache[pred][0][0], pred, clip_weights)
+                representation_item[0] = compare_representation_feature(representation_item[0], attention_cache[pred][0][0], pred, clip_weights)                
                             
-            elif features_loss[1] < cache[pred][-1][1]:
+            # elif features_loss[1] < cache[pred][-1][1]:
+            elif item[1] < cache[pred][-1][1]:
                 cache[pred][-1] = item
                 num_count[pred] = num_count[pred] + 1
                 total_number = num_count[pred]
@@ -57,24 +59,8 @@ def update_cache(cache, pred, features_loss, shot_capacity, num_count, clip_weig
             num_count[pred] = 0
             representation_item = copy.deepcopy(item)
             representation_item[1] = torch.zeros_like(item[1]) # item[1] is entropy. However, representation_item do not use entropy. So We initialize loss value = 0 for convenience
-            representation_cache[pred] = [representation_item]
+            representation_cache[pred] = [representation_item]           
 
-def merge_dictionary(dict1,dict2) :
-
-    merged_dict = {}
-
-    for key in set(dict1)|set(dict2) :
-
-        if key in dict1 and key in dict2:
-            merged_dict[key] = dict1[key][:] + [dict2[key][0]]
-
-        elif key in dict1:
-            merged_dict[key] = dict1[key][:]
-
-        else:
-            merged_dict[key] = dict2[key][:]
-
-    return merged_dict
     
 def compute_cache_logits(image_features, cache, representation_cache, attention_cache, alpha, beta, clip_weights, device):
     """Compute logits using positive/negative cache.""" 
@@ -111,8 +97,10 @@ def run_test_rfia(pos_cfg, loader, clip_model, clip_weights, wandb_test, device)
             image_features, clip_logits, loss, prob_map, pred = get_clip_logits(images ,clip_model, clip_weights, device)
             target = target.to(device)
             if pos_enabled:
-                update_cache(pos_cache, pred, [image_features, loss, prob_map], pos_params['shot_capacity'], pos_num_count, clip_weights,
-                                 representation_cache, attention_cache,True)
+                update_cache(pos_cache, pred, [image_features, loss], pos_params['shot_capacity'], pos_num_count, clip_weights,
+                                 representation_cache, attention_cache)
+                # update_cache(pos_cache, pred, [image_features, loss, prob_map], pos_params['shot_capacity'], pos_num_count, clip_weights,
+                #                  representation_cache, attention_cache)
             final_logits = clip_logits.clone()
             if pos_enabled and pos_cache:
                 final_logits += compute_cache_logits(image_features, pos_cache,representation_cache,attention_cache, pos_params['alpha'], pos_params['beta'], clip_weights, device)
@@ -121,8 +109,12 @@ def run_test_rfia(pos_cfg, loader, clip_model, clip_weights, wandb_test, device)
             accuracies.append(acc)
             if wandb_test :
                 wandb.log({"Averaged test accuracy": sum(accuracies)/len(accuracies)}, commit=True)
-            if i%1000==0:
+            # if i%1000==0:
+            #     print("---- RFIA's test accuracy: {:.2f}. ----\n".format(sum(accuracies)/len(accuracies)))              
+            if i%100==0:
                 print("---- RFIA's test accuracy: {:.2f}. ----\n".format(sum(accuracies)/len(accuracies)))
+            if i==200:
+                break
         print("---- RFIA's test accuracy: {:.2f}. ----\n".format(sum(accuracies)/len(accuracies)))   
         return sum(accuracies)/len(accuracies)    
 

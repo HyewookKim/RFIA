@@ -1,7 +1,12 @@
 # Weights & Biases
 wandb/
 
+# pycache
 __pycache__/
 *.pyc
 
+# vscode config
+.vscode/
+
+# toy example
 scripts/run_cd_dtd_rn50.sh
