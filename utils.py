@@ -151,7 +151,7 @@ def modify_representation_feature(representation_item,item,total_number):
 
     return representation_feature
 
-def get_attention_feature(representation_item,cache):
+def get_sub_representation_feature(representation_item,cache):
     representation_feature = representation_item[0]
     cache_feature = [item[0] for item in cache]
     cache_loss = [item[1] for item in cache]

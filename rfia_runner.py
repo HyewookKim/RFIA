@@ -29,8 +29,7 @@ def get_arguments():
     return args
 
 
-# def update_cache(cache, pred, features_loss, shot_capacity, num_count, clip_weights,representation_cache,attention_cache, include_prob_map=False):
-def update_cache(cache, pred, item, shot_capacity, num_count, clip_weights,representation_cache,attention_cache):    
+def update_cache(cache, pred, item, shot_capacity, num_count, clip_weights,representation_cache,sub_rep_cache):    
     """Update cache with new features and loss, maintaining the maximum shot capacity."""
     with torch.no_grad():
         # item = features_loss if not include_prob_map else features_loss[:2] + [features_loss[2]]     
@@ -38,21 +37,19 @@ def update_cache(cache, pred, item, shot_capacity, num_count, clip_weights,repre
             if len(cache[pred]) < shot_capacity: 
                 cache[pred].append(item)
                 num_count[pred] = num_count[pred] + 1
-                total_number = num_count[pred]
                 representation_item = representation_cache[pred][0]
-                representation_item[0] = modify_representation_feature(representation_item,item,total_number)
-                attention_cache[pred] = get_attention_feature(representation_item,cache[pred])
-                representation_item[0] = compare_representation_feature(representation_item[0], attention_cache[pred][0][0], pred, clip_weights)                
+                representation_item[0] = modify_representation_feature(representation_item,item,num_count[pred])
+                sub_rep_cache[pred] = get_sub_representation_feature(representation_item,cache[pred])
+                representation_item[0] = compare_representation_feature(representation_item[0], sub_rep_cache[pred][0][0], pred, clip_weights)                
                             
             # elif features_loss[1] < cache[pred][-1][1]:
             elif item[1] < cache[pred][-1][1]:
                 cache[pred][-1] = item
                 num_count[pred] = num_count[pred] + 1
-                total_number = num_count[pred]
                 representation_item = representation_cache[pred][0]
-                representation_item[0] = modify_representation_feature(representation_item,item,total_number)
-                attention_cache[pred] = get_attention_feature(representation_item,cache[pred])
-                representation_item[0] = compare_representation_feature(representation_item[0], attention_cache[pred][0][0], pred, clip_weights)
+                representation_item[0] = modify_representation_feature(representation_item,item,num_count[pred])
+                sub_rep_cache[pred] = get_sub_representation_feature(representation_item,cache[pred])
+                representation_item[0] = compare_representation_feature(representation_item[0], sub_rep_cache[pred][0][0], pred, clip_weights)
             cache[pred] = sorted(cache[pred], key=operator.itemgetter(1))
         else:
             cache[pred] = [item]
@@ -62,12 +59,12 @@ def update_cache(cache, pred, item, shot_capacity, num_count, clip_weights,repre
             representation_cache[pred] = [representation_item]           
 
     
-def compute_cache_logits(image_features, cache, representation_cache, attention_cache, alpha, beta, clip_weights, device):
+def compute_cache_logits(image_features, cache, representation_cache, sub_rep_cache, alpha, beta, clip_weights, device):
     """Compute logits using positive/negative cache.""" 
     with torch.no_grad():
         cache_keys = []
         cache_values = []
-        merged_cache = merge_dictionary(cache, attention_cache)           
+        merged_cache = merge_dictionary(cache, sub_rep_cache)           
         for class_index in sorted(cache.keys()):
             merged_cache[class_index] = [representation_cache[class_index][0]] + [representation_cache[class_index][0]] + merged_cache[class_index][:]
             for item in merged_cache[class_index]:
@@ -84,7 +81,7 @@ def run_test_rfia(pos_cfg, loader, clip_model, clip_weights, wandb_test, device)
     with torch.no_grad():
         pos_cache, accuracies = {}, []
         representation_cache = {}
-        attention_cache = {}
+        sub_rep_cache = {}
         pos_num_count = {}
 
         #Unpack all hyperparameters
@@ -98,12 +95,12 @@ def run_test_rfia(pos_cfg, loader, clip_model, clip_weights, wandb_test, device)
             target = target.to(device)
             if pos_enabled:
                 update_cache(pos_cache, pred, [image_features, loss], pos_params['shot_capacity'], pos_num_count, clip_weights,
-                                 representation_cache, attention_cache)
+                                 representation_cache, sub_rep_cache)
                 # update_cache(pos_cache, pred, [image_features, loss, prob_map], pos_params['shot_capacity'], pos_num_count, clip_weights,
-                #                  representation_cache, attention_cache)
+                #                  representation_cache, sub_rep_cache)
             final_logits = clip_logits.clone()
             if pos_enabled and pos_cache:
-                final_logits += compute_cache_logits(image_features, pos_cache,representation_cache,attention_cache, pos_params['alpha'], pos_params['beta'], clip_weights, device)
+                final_logits += compute_cache_logits(image_features, pos_cache,representation_cache,sub_rep_cache, pos_params['alpha'], pos_params['beta'], clip_weights, device)
 
             acc = cls_acc(final_logits, target)  
             accuracies.append(acc)
